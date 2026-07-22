@@ -1,0 +1,36 @@
+modLoader = "javafml" #mandatory
+loaderVersion = "[47,)" #mandatory
+license = "MIT"
+issueTrackerURL = "https://github.com/ecpunk/forge-netstress/issues"
+
+[[mods]] #mandatory
+modId = "forge_netstress" #mandatory
+version = "0.1" #mandatory
+displayName = "Forge NetStress"
+authors = "turdcraft"
+description = '''
+TEST TOOL -- generates artificial, deliberately heavy network traffic to
+probe Forge's networking layer. Not for normal play. Scenario-driven
+harness: each scenario declares a payload size and send rate; switch or
+halt live with /netstress list|run <name>|stop (ops only). Default-active
+scenario (baseline_4k_20hz) reproduces a proven stock Forge 1.20.1
+(47.4.18) bug -- the pooled direct ByteBuf copy SimpleChannel receives for
+every custom-payload packet is never released -- by sending a steady
+stream of 4096-byte custom-payload packets from server to client (one per
+player per tick) while the client logs the JVM's direct NIO buffer pool
+every ~10s. Carries no fix; observes and reports only.
+'''
+
+[[dependencies."forge_netstress"]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies."forge_netstress"]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.21)"
+ordering = "NONE"
+side = "BOTH"
