@@ -11,8 +11,9 @@ Scenario one is the minimal reproducer for that issue.
 
 ## Status
 
-v0.1, early. One scenario so far. The mod builds and passes static verification;
-live test results will be recorded here as they happen. The intent is to grow
+v0.1.2, live-verified. Two scenarios, one for each observed symptom of the
+#10861 missing release (see below), both confirmed against a stock Forge
+47.4.18 dedicated server with no other mods installed. The intent is to grow
 this into a small library of scenarios (payload sizes and rates, both channel
 types, both directions, different handler behaviors) that can act as a partial
 conformance and stress suite for Forge's networking.
@@ -20,18 +21,34 @@ conformance and stress suite for Forge's networking.
 ## How it works
 
 Install the same jar on a throwaway dedicated server and a client. On the
-server it sends each connected player a test payload every tick (scenario
-`baseline_4k_20hz`: 4096 bytes, 20 packets per second, via a normal
-SimpleChannel registration, active by default). On the client it logs a line
-every ten seconds with the JVM's direct buffer pool statistics:
+server it sends each connected player test payloads via a normal SimpleChannel
+registration. On the client it logs a line every ten seconds with the JVM's
+direct buffer pool statistics, plus a one-time allocator fingerprint at
+startup, and arms Netty's leak detector at PARANOID so leaked buffers get
+stack-traced `LEAK:` reports in the client log:
 
 ```
 [forge_netstress] direct pool: used=142 MB capacity=142 MB buffers=310
 ```
 
-On stock Forge 1.20.1 that number climbs for as long as traffic flows and never
-comes back down. See TESTING.md for the full procedure, including two contrast
-runs (singleplayer, and with the
+The missing release in Forge's receive path has two distinct symptoms, forked
+by the server's `network-compression-threshold` (256 by default), and the two
+shipped scenarios reproduce one each:
+
+- `baseline_4k_20hz` (4096 bytes, 20 packets/s, active by default): payloads
+  over the threshold are decompressed into heap-backed buffers, so the leaked
+  copies can still be garbage-collected. The pool climbs, then drops when GC
+  runs — a sawtooth. This is the scenario that produces `LEAK:` records
+  naming `SimpleChannel.networkEventListener`, since Netty only reports a
+  leak when the leaked buffer is collected.
+- `small_128b_200hz` (128 bytes, 200 packets/s): payloads under the threshold
+  stay in Netty's pooled allocator, and the leaked copies pin 4 MB arena
+  chunks no GC can ever reclaim. Pool capacity steps up 4 MB at a time and
+  never comes back down until disconnect — the unreclaimable variant that
+  exhausts direct memory on long sessions in real modpacks.
+
+See TESTING.md for the full procedure and expected log signatures, including
+two contrast runs (singleplayer, and with the
 [forge-netleak-fix](https://github.com/ecpunk/forge-netleak-fix) mod installed).
 
 ## Commands
