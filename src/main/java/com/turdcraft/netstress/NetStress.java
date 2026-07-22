@@ -37,6 +37,7 @@ public class NetStress {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public NetStress() {
+        NetFingerprint.logAndArm();
         NetworkHandler.register();
         LOGGER.warn("[{}] loaded. *** THIS IS A TEST TOOL that generates artificial, deliberately "
                 + "heavy network traffic. It is NOT for normal play -- do not install it on a shared or "

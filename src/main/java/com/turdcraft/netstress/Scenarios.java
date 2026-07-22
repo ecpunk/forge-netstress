@@ -21,6 +21,16 @@ public final class Scenarios {
                 1,
                 "SimpleChannel S2C, consume-normally handler, one 4096-byte packet per player per "
                         + "server tick (~20/s/player) -- the Forge #10861 reproducer."));
+        register(new Scenario(
+                "small_128b_200hz",
+                128,
+                10,
+                "SimpleChannel S2C, consume-normally handler, ten 128-byte packets per player per "
+                        + "server tick (~200/s/player). Wire size stays UNDER the default "
+                        + "network-compression-threshold of 256, so the payload buffer's lineage is "
+                        + "the pooled wire-buffer path -- the path where Forge's missing release "
+                        + "pins arena chunks permanently -- instead of the decompressed-heap path "
+                        + "that a GC can rescue."));
     }
 
     private Scenarios() {

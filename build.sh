@@ -29,7 +29,7 @@ SRC_JAVA="$PROJ_DIR/src/main/java"
 SRC_RES="$PROJ_DIR/src/main/resources"
 BUILD_CLASSES="$PROJ_DIR/build/classes"
 DIST_DIR="$PROJ_DIR/dist"
-JAR_NAME="forge_netstress-0.1.1.jar"
+JAR_NAME="forge_netstress-0.1.2.jar"
 
 rm -rf "$BUILD_CLASSES"
 mkdir -p "$BUILD_CLASSES" "$DIST_DIR"
