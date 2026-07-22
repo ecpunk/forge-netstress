@@ -3,6 +3,6 @@ Specification-Title: forge_netstress
 Specification-Vendor: turdcraft
 Specification-Version: 1
 Implementation-Title: Forge NetStress
-Implementation-Version: 0.1
+Implementation-Version: 0.1.1
 Implementation-Vendor: turdcraft
 

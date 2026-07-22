@@ -25,11 +25,11 @@ with no commands run behaves exactly like the standalone reproducer did.
   directory, e.g. `~/mctest/server/`.
 - Accept the EULA (`eula.txt` -> `eula=true`), start the server once to
   generate `mods/`, stop it.
-- Drop **only** `dist/forge_netstress-0.1.jar` into `~/mctest/server/mods/`.
+- Drop **only** `dist/forge_netstress-0.1.1.jar` into `~/mctest/server/mods/`.
   No other mods.
 - On the client side, install the matching Forge 1.20.1-47.4.18 profile in
   the vanilla launcher (or a CurseForge/Prism instance pinned to that
-  version) and drop **only** `forge_netstress-0.1.jar` into that instance's
+  version) and drop **only** `forge_netstress-0.1.1.jar` into that instance's
   `mods/`. No other mods.
 - Start the server, then join it from the client over LAN/localhost. Make
   sure whoever is running the test is an op on the server (needed for the
@@ -37,7 +37,8 @@ with no commands run behaves exactly like the standalone reproducer did.
 
 ## 2. Command flow: `/netstress`
 
-Server-side, ops-only:
+Commands are unrestricted (no op/permission check) -- this is a test tool
+for throwaway servers only, never a shared or family server.
 
 - `/netstress list` — prints every known scenario (name + description) and
   marks which one is currently active (or that none is, if stopped).

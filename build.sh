@@ -29,7 +29,7 @@ SRC_JAVA="$PROJ_DIR/src/main/java"
 SRC_RES="$PROJ_DIR/src/main/resources"
 BUILD_CLASSES="$PROJ_DIR/build/classes"
 DIST_DIR="$PROJ_DIR/dist"
-JAR_NAME="forge_netstress-0.1.jar"
+JAR_NAME="forge_netstress-0.1.1.jar"
 
 rm -rf "$BUILD_CLASSES"
 mkdir -p "$BUILD_CLASSES" "$DIST_DIR"
@@ -46,22 +46,40 @@ find_lib() { # find_lib <relative-dir-glob> <jar-glob>
 }
 
 # --- Deobfuscate vanilla game classes to official names --------------------
-# This mod's server-side handler walks the real player list (MinecraftServer
-# -> PlayerList -> ServerPlayer) and its command (/netstress) is registered
-# via the vanilla command layer (Commands / CommandSourceStack /
-# SharedSuggestionProvider, RegisterCommandsEvent's dispatcher), unlike the
-# forge-netleak-fix mod (github.com/ecpunk/forge-netleak-fix) which only ever touches Forge's own
-# already-official-named API surface (SimpleChannel/NetworkEvent). Forge's
-# distributed jars carry those pure
-# vanilla members under SRG names (m_xxxx_/f_xxxx_) on disk; the "official"
-# Mojang names only exist after a remap pass that ForgeGradle normally does
-# for you. We do that pass ourselves, offline, using the deobfuscation
-# tooling and mapping file Forge already ships in this same libraries tree
+# Even though this mod's source (as of 0.1.1) never calls a method DECLARED
+# on a net.minecraft class -- see the bytecode gate at the end of this
+# script, and the class-level javadoc on NetStressCommand / ServerTickHandler
+# / TestPayload for the incident that made that a hard rule -- it still
+# REFERENCES several vanilla TYPES (ServerPlayer, CommandSourceStack,
+# FriendlyByteBuf, ResourceLocation, the Player return type of Forge's own
+# PlayerEvent#getEntity()) in field/parameter/generic-argument position and
+# in one constructor call (`new ResourceLocation(...)`, safe: SRG never
+# renames constructors). javac needs those classes resolvable under their
+# official (Mojang) names to type-check those references and generic
+# parameters at compile time, so this deobfuscation pass stays even though
+# nothing here calls a vanilla instance/static method anymore.
+#
+# Forge's distributed jars carry vanilla members under SRG names
+# (m_xxxx_/f_xxxx_) on disk; the "official" Mojang names only exist after a
+# remap pass that ForgeGradle normally does for you. We do that pass
+# ourselves, offline, using the deobfuscation tooling and mapping file Forge
+# already ships in this same libraries tree
 # (net/minecraftforge/ForgeAutoRenamingTool + the per-version mappings.txt,
 # which is Mojang's official<->obfuscated ProGuard-format mapping). Source
 # is the "slim" jar (pure vanilla game classes, pre-SRG, single-letter
 # obfuscated names) — reversing that mapping gets us straight to official
 # names without needing a separate obf<->SRG table.
+#
+# CRITICAL CAVEAT this deobfuscation pass does NOT fix: it only affects
+# what this *build* resolves symbols against. The Forge dedicated-server
+# RUNTIME's own vanilla classes are still SRG-named on disk -- always, in
+# every real Forge 1.20.1 install, since only a full ForgeGradle build
+# reobfuscates. So any call to a method DECLARED on a net.minecraft class
+# compiles clean here and throws NoSuchMethodError the instant it runs on a
+# real server (exactly how v0.1 crashed: Commands.literal(String) at
+# NetStressCommand.java:41). Referencing a vanilla TYPE is always fine;
+# calling a vanilla-declared METHOD never is. The bytecode gate below is the
+# permanent, mechanical enforcement of that line.
 SLIM_JAR="$(find_lib 'net/minecraft/server' '*-slim.jar')"
 MC_MAPPINGS="$(find_lib 'net/minecraft/server' '*-mappings.txt')"
 FART_JAR="$(find_lib 'net/minecraftforge/ForgeAutoRenamingTool' 'ForgeAutoRenamingTool-*-all.jar')"
@@ -181,5 +199,73 @@ unzip -p "$DIST_DIR/$JAR_NAME" META-INF/MANIFEST.MF
 echo "== class file version check (must be 61 = Java 17) =="
 CLASS_FILE=$(find "$BUILD_CLASSES" -name '*.class' | head -1)
 javap -v "$CLASS_FILE" | grep -m1 "major version"
+
+# --- Bytecode gate: zero calls to methods declared on net.minecraft -------
+# This is the permanent, mechanical guard against the bug class that broke
+# v0.1 at dedicated-server startup (NoSuchMethodError on
+# Commands.literal(String), a method declared on net.minecraft.commands
+# .Commands -- see NetStressCommand's javadoc and build.sh's deobfuscation
+# comment above for the full mechanism). It disassembles every compiled
+# class's constant pool (javap -v -p) and fails the build if any
+# Methodref/InterfaceMethodref entry is owned by a net/minecraft/* class
+# that is not net/minecraftforge/* -- except <init> (constructor) refs,
+# which SRG never renames and are therefore always safe to call.
+echo "== bytecode gate: zero net.minecraft-declared method calls =="
+GATE_SCRIPT="$PROJ_DIR/build/bytecode_gate.py"
+cat > "$GATE_SCRIPT" <<'PYEOF'
+import re
+import subprocess
+import sys
+
+# Matches a constant-pool line's trailing "// owner.name:descriptor" (or
+# "// owner."<init>":descriptor" for constructors) comment that javap -v
+# emits for Methodref / InterfaceMethodref entries, e.g.:
+#   #15 = Methodref  #16.#17  // net/minecraft/commands/Commands.literal:(Ljava/lang/String;)...
+REF_RE = re.compile(r'//\s*([^\s.]+)\.((?:"<init>")|[^:]+):')
+
+
+def offenders_in(class_file):
+    out = subprocess.run(
+        ["javap", "-v", "-p", class_file],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    found = []
+    for line in out.splitlines():
+        if "Methodref" not in line:  # covers both Methodref and InterfaceMethodref
+            continue
+        m = REF_RE.search(line)
+        if not m:
+            continue
+        owner, name = m.group(1), m.group(2).strip('"')
+        if owner.startswith("net/minecraft/") and not owner.startswith("net/minecraftforge/") and name != "<init>":
+            found.append(f"{owner}.{name}")
+    return found
+
+
+def main():
+    class_files = sys.argv[1:]
+    failed = False
+    for cf in class_files:
+        offenders = offenders_in(cf)
+        if offenders:
+            failed = True
+            print(f"OFFENDING: {cf}")
+            for o in sorted(set(offenders)):
+                print(f"    {o}")
+        else:
+            print(f"clean:     {cf}")
+    if failed:
+        print("FAIL: net.minecraft-declared method call(s) found (see above) -- "
+              "these WILL throw NoSuchMethodError on a real Forge dedicated server.")
+        sys.exit(1)
+    print(f"PASS: {len(class_files)} class(es), zero net.minecraft-declared method calls "
+          "(constructors exempt).")
+
+
+if __name__ == "__main__":
+    main()
+PYEOF
+mapfile -t CLASS_FILES < <(find "$BUILD_CLASSES" -name '*.class')
+python3 "$GATE_SCRIPT" "${CLASS_FILES[@]}"
 
 echo "== build complete =="

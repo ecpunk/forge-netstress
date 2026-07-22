@@ -36,13 +36,14 @@ runs (singleplayer, and with the
 
 ## Commands
 
-Ops (permission level 2) on the server:
-
 ```
 /netstress list          show scenarios and which is active
 /netstress run <name>    start a scenario
 /netstress stop          stop traffic
 ```
+
+Commands are unrestricted (no permission check) — this is a test tool for
+throwaway servers only, never a shared or family server.
 
 Stopping traffic halts the climb. The pool not draining afterward is the
 behavior under investigation, not a bug in this tool.

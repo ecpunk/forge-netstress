@@ -5,7 +5,7 @@ issueTrackerURL = "https://github.com/ecpunk/forge-netstress/issues"
 
 [[mods]] #mandatory
 modId = "forge_netstress" #mandatory
-version = "0.1" #mandatory
+version = "0.1.1" #mandatory
 displayName = "Forge NetStress"
 authors = "turdcraft"
 description = '''

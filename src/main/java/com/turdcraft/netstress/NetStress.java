@@ -42,8 +42,9 @@ public class NetStress {
                 + "heavy network traffic. It is NOT for normal play -- do not install it on a shared or "
                 + "family server. *** Default-active scenario: 'baseline_4k_20hz' (one 4096-byte "
                 + "custom-payload packet per connected player per server tick, ~20/s/player, ~80 "
-                + "KB/s/player). Use /netstress list|run <name>|stop (requires op permission) to switch "
-                + "or halt scenarios live. Client side logs the JVM direct buffer pool periodically so "
+                + "KB/s/player). Use /netstress list|run <name>|stop (unrestricted -- test tool, "
+                + "throwaway servers only) to switch or halt scenarios live. Client side logs the JVM "
+                + "direct buffer pool periodically so "
                 + "the effect of a scenario is visible without external tooling.", MODID);
     }
 }
