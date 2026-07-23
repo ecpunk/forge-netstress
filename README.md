@@ -38,9 +38,12 @@ shipped scenarios reproduce one each:
 - `baseline_4k_20hz` (4096 bytes, 20 packets/s, active by default): payloads
   over the threshold are decompressed into heap-backed buffers, so the leaked
   copies can still be garbage-collected. The pool climbs, then drops when GC
-  runs — a sawtooth. This is the scenario that produces `LEAK:` records
-  naming `SimpleChannel.networkEventListener`, since Netty only reports a
-  leak when the leaked buffer is collected.
+  runs — a sawtooth. The stack-traced `LEAK:` records naming
+  `SimpleChannel.networkEventListener` show up most readily on this path,
+  where collection of the leaked buffer also reclaims its memory. (Records
+  can appear in the pooled case too — the wrapper object gets collected while
+  the arena memory stays lost — and Netty deduplicates reports, so the record
+  count never tracks leak volume. See TESTING.md.)
 - `small_128b_200hz` (128 bytes, 200 packets/s): payloads under the threshold
   stay in Netty's pooled allocator, and the leaked copies pin 4 MB arena
   chunks no GC can ever reclaim. Pool capacity steps up 4 MB at a time and

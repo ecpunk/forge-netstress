@@ -36,11 +36,9 @@ Both scenarios exercise the same missing release; they differ only in
 which side of that fork they land on:
 
 - `baseline_4k_20hz` — 4096-byte payload, one packet per player per server
-  tick (~20/s/player). Over the threshold → the **sawtooth** variant. This
-  is the scenario to pair with the leak-detector output (step 5), because
-  Netty only prints a `LEAK:` record when a leaked buffer is
-  garbage-collected, which only ever happens on this path. **Active by
-  default** on a fresh install.
+  tick (~20/s/player). Over the threshold → the **sawtooth** variant. On
+  this path the leak reports of step 5 coincide with the memory actually
+  being reclaimed. **Active by default** on a fresh install.
 - `small_128b_200hz` — 128-byte payload, ten packets per player per server
   tick (~200/s/player). Under the threshold → the **ratchet** variant, the
   one that exhausts `-XX:MaxDirectMemorySize` on long sessions in real
@@ -127,10 +125,16 @@ net.minecraftforge.network.simple.SimpleChannel.networkEventListener
 
 Forge's own login handshake (`HandshakeMessages$S2CRegistry`) shows up in
 these records too — the handshake payloads leak through the same path
-before any test traffic flows. Remember the asymmetry from step 4: `LEAK:`
-records print at GC time, so only the sawtooth variant can produce them.
-The ratchet variant's buffers are never collected, which is exactly the
-problem; its evidence is the gauge, not the detector.
+before any test traffic flows.
+
+How to read the records: a `LEAK:` line prints when the leaked buffer
+*object* is garbage-collected. In the sawtooth variant that collection
+also reclaims the memory. In the ratchet variant the wrapper object can
+still be collected and reported while the pooled memory it referenced
+stays lost in the arena, so a small number of records can appear there
+too. Netty additionally deduplicates reports, so the record count never
+tracks leak volume. Treat the records as proof that the release is
+missing, and the pool gauge as the measure of what that costs.
 
 ## 6. Optional contrast A — singleplayer shows no climb
 
